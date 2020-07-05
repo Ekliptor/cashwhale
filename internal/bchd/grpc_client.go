@@ -73,8 +73,8 @@ func NewReqContext() context.Context {
 func (gc *GRPCClient) ReadTransactionStream(reqCtx context.Context, msgBuilder *social.MessageBuilder) error {
 	// open the TX stream
 	transactionStream, err := gc.Client.SubscribeTransactions(reqCtx, &pb.SubscribeTransactionsRequest{
-		Subscribe:      &pb.TransactionFilter{
-			AllTransactions:  true,
+		Subscribe: &pb.TransactionFilter{
+			AllTransactions: true,
 		},
 		Unsubscribe:    nil,
 		IncludeMempool: false,
@@ -95,7 +95,7 @@ func (gc *GRPCClient) ReadTransactionStream(reqCtx context.Context, msgBuilder *
 			gc.logger.Errorf("Error in BCHD TX stream: %+v", err)
 			break
 		}
-		gc.logger.Debugf("TX: %+v", data)
+		//gc.logger.Debugf("TX: %+v", data)
 		if data.GetType() == pb.TransactionNotification_CONFIRMED {
 			tx := data.GetConfirmedTransaction()
 			if tx == nil {

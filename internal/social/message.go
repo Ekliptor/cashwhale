@@ -6,6 +6,8 @@ import (
 	"github.com/Ekliptor/cashwhale/internal/log"
 	"github.com/Ekliptor/cashwhale/pkg/price"
 	"github.com/spf13/viper"
+	"golang.org/x/text/language"
+	"golang.org/x/text/message"
 	"text/template"
 )
 
@@ -31,17 +33,17 @@ func NewMessageBuilder(logger log.Logger) *MessageBuilder {
 
 type TransactionData struct {
 	//RawTXs []*pb.Transaction_Output `json:"txs"`
-	AmountBchRaw     float64 `json:"amount_bch_raw"`
+	AmountBchRaw float64 `json:"amount_bch_raw"`
 
 	Amount     string `json:"amount"`
-	Symbol     string  `json:"symbol"`
-	Currency string `json:"currency"`
+	Symbol     string `json:"symbol"`
+	Currency   string `json:"currency"`
 	FiatAmount string `json:"fiat_amount"`
-	FiatSymbol string  `json:"fiat_symbol"`
-	Hash string `json:"hash"`
-	TxLink string  `json:"tx_link"`
+	FiatSymbol string `json:"fiat_symbol"`
+	Hash       string `json:"hash"`
+	TxLink     string `json:"tx_link"`
 
-	Message string  `json:"message"`
+	Message string `json:"message"`
 }
 
 // Prepares a social media message from RawTXs.
@@ -56,10 +58,11 @@ func (m *MessageBuilder) CreateMessage(tx *TransactionData) error {
 	}
 
 	// fill template vars
-	tx.Amount = fmt.Sprintf("%.2f", tx.AmountBchRaw)
+	pr := message.NewPrinter(language.English)
+	tx.Amount = pr.Sprintf("%.2f", tx.AmountBchRaw)
 	tx.Symbol = "BCH" // TODO add SLP support
 	tx.Currency = "BitcoinCash"
-	tx.FiatAmount = fmt.Sprintf("%.2f", tx.AmountBchRaw * float64(price))
+	tx.FiatAmount = pr.Sprintf("%.2f", tx.AmountBchRaw*float64(price))
 	tx.FiatSymbol = viper.GetString("Message.FiatCurrency")
 	tx.TxLink = fmt.Sprintf(viper.GetString("Message.BlockExplorer"), tx.Hash)
 

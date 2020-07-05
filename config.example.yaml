@@ -18,7 +18,7 @@ Message:
   Text: "{{.Amount}} #{{.Currency}} #{{.Symbol}} ({{.FiatAmount}} {{.FiatSymbol}}) transferred\n\nTX: {{.TxLink}}"
   BlockExplorer: "https://explorer.bitcoin.com/bch/tx/%s"
   FiatCurrency: "USD"
-  WahleThresholdBCH: 500.0
+  WahleThresholdBCH: 1000.0
 
 # Twitter config
 Twitter:
