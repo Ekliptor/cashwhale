@@ -18,7 +18,7 @@ customize your settings (BCHD address, Twitter API, ...)
 2. In the project root directory, just run:
 ```
 ./scripts/build.sh
-./bin/cashwhale
+./bin/cashwhale watch
 ```
 
 ### Running tests
