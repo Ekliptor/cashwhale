@@ -101,8 +101,6 @@ func (gc *GRPCClient) ReadTransactionStream(reqCtx context.Context, msgBuilder *
 			if tx == nil {
 				gc.logger.Errorf("Received invalid bchd TX")
 			} else {
-				gc.logger.Debugf("TX: %+v", tx.GetOutputs())
-
 				// loop through TX outputs and find big transactions
 				outputs := tx.GetOutputs()
 				for _, out := range outputs {
@@ -131,8 +129,4 @@ func (gc *GRPCClient) ReadTransactionStream(reqCtx context.Context, msgBuilder *
 	}
 
 	return nil
-}
-
-func (gc *GRPCClient) getTotalValueFromTx() {
-
 }
