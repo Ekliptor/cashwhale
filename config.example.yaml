@@ -1,0 +1,33 @@
+# Logger settings
+Log:
+  Level: debug
+  Color: true
+  JSON: false
+  EnableFile: false
+
+BCHD:
+  # BCHD servers: bchd.imaginary.cash:8335 or bchd.greyh.at:8335, bchd.fountainhead.cash:443, bchd.cashtippr.com:8335
+  # https://github.com/simpleledgerinc/grpc-bchrpc-node#bchd-servers
+  Address: "bchd.imaginary.cash:8335"
+  AuthenticationToken: ""
+  RootCertFile: ""
+  CaDomain: ""
+  AllowSelfSigned: true
+
+Message:
+  Text: "{{.Amount}} #{{.Currency}} #{{.Symbol}} ({{.FiatAmount}} {{.FiatSymbol}}) transferred\n\nTX: {{.TxLink}}"
+  BlockExplorer: "https://explorer.bitcoin.com/bch/tx/%s"
+  FiatCurrency: "USD"
+  WahleThresholdBCH: 500.0
+
+# Twitter config
+Twitter:
+  Enable: true
+  ConsumerKey: ""
+  ConsumerSecret: ""
+  AccessToken: ""
+  AccessSecret: ""
+
+Price:
+  API:
+    USD: "https://index-api.bitcoin.com/api/v0/cash/price/usd"

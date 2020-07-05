@@ -1,0 +1,33 @@
+# template from https://github.com/github/gitignore/blob/master/Go.gitignore
+
+# Binaries for programs and plugins
+*.exe
+*.exe~
+*.dll
+*.so
+*.dylib
+
+# Test binary, built with `go test -c`
+*.test
+
+# Output of the go coverage tool, specifically when used with LiteIDE
+*.out
+
+# Dependency directories (remove the comment below to include it)
+# vendor/
+
+# OS and IDE specific
+.idea
+*.DS_Store
+
+# logs, process IDs and other application files
+*.pid
+*.log
+
+# project related files
+/bin
+config.yaml
+/internal/social/memo*
+
+# test coverage
+/testlog
