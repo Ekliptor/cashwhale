@@ -3,10 +3,10 @@ package bchd
 import (
 	"context"
 	"crypto/tls"
-	"github.com/Ekliptor/cashwhale/internal/bchd/chainhash"
 	pb "github.com/Ekliptor/cashwhale/internal/bchd/golang"
 	"github.com/Ekliptor/cashwhale/internal/log"
 	"github.com/Ekliptor/cashwhale/internal/social"
+	"github.com/Ekliptor/cashwhale/pkg/chainhash"
 	"github.com/Ekliptor/cashwhale/pkg/price"
 	"github.com/spf13/viper"
 	"google.golang.org/grpc"
