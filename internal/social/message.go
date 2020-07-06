@@ -59,7 +59,7 @@ func (m *MessageBuilder) CreateMessage(tx *TransactionData) error {
 
 	// fill template vars
 	pr := message.NewPrinter(language.English)
-	tx.Amount = pr.Sprintf("%.2f", tx.AmountBchRaw)
+	tx.Amount = pr.Sprintf("%.0f", tx.AmountBchRaw)
 	tx.Symbol = "BCH" // TODO add SLP support
 	tx.Currency = "BitcoinCash"
 	tx.FiatAmount = pr.Sprintf("%.0f", tx.AmountBchRaw*float64(price))
