@@ -20,6 +20,10 @@ Message:
   FiatCurrency: "USD"
   WahleThresholdBCH: 2000.0
 
+Monitoring:
+  Enable: true
+  Address: ":8686"
+
 # Twitter config
 Twitter:
   Enable: true
