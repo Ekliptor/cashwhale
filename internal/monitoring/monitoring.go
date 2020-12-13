@@ -10,7 +10,7 @@ import (
 	"time"
 )
 
-// ensure we always implement gorm http.Handler (compile error otherwise)
+// ensure we always implement http.Handler (compile error otherwise)
 var _ http.Handler = (*HttpMonitoring)(nil)
 
 type EventMap map[string]interface{}
@@ -101,9 +101,6 @@ func (m *HttpMonitoring) ServeHTTP(writer http.ResponseWriter, req *http.Request
 		return
 	}
 
-	writer.WriteHeader(http.StatusOK)
-	writer.Header().Set("Content-Type", "application/json; charset=utf-8")
-
 	res := EventMap{
 		"error": false,
 		"data":  m.events,
@@ -112,7 +109,21 @@ func (m *HttpMonitoring) ServeHTTP(writer http.ResponseWriter, req *http.Request
 	jsonData, err := json.Marshal(res)
 	if err != nil {
 		m.logger.Errorf("Error responding monitoring data: %+v", err)
+
+		res["error"] = true
+		res["data"] = nil // the payload most likely caused the error
+		jsonData, err := json.Marshal(res)
+		if err != nil {
+			m.logger.Errorf("Repeating responding monitoring data - giving up: %+v", err)
+			return
+		}
+		writer.WriteHeader(http.StatusInternalServerError)
+		writer.Header().Set("Content-Type", "application/json; charset=utf-8")
+		writer.Write(jsonData)
 		return
 	}
+
+	writer.WriteHeader(http.StatusOK)
+	writer.Header().Set("Content-Type", "application/json; charset=utf-8")
 	writer.Write(jsonData)
 }
