@@ -5,6 +5,7 @@ import (
 	"crypto/tls"
 	pb "github.com/Ekliptor/cashwhale/internal/bchd/golang"
 	"github.com/Ekliptor/cashwhale/internal/log"
+	"github.com/Ekliptor/cashwhale/internal/monitoring"
 	"github.com/Ekliptor/cashwhale/internal/social"
 	"github.com/Ekliptor/cashwhale/pkg/chainhash"
 	"github.com/Ekliptor/cashwhale/pkg/price"
@@ -19,15 +20,17 @@ import (
 type GRPCClient struct {
 	Client pb.BchrpcClient
 
-	logger log.Logger
-	conn   *grpc.ClientConn
+	logger  log.Logger
+	monitor *monitoring.HttpMonitoring
+	conn    *grpc.ClientConn
 }
 
-func NewGrpcClient(logger log.Logger) (grpcClient *GRPCClient, err error) {
+func NewGrpcClient(logger log.Logger, monitor *monitoring.HttpMonitoring) (grpcClient *GRPCClient, err error) {
 	grpcClient = &GRPCClient{
 		logger: logger.WithFields(log.Fields{
 			"module": "bchd_grpc",
 		}),
+		monitor: monitor,
 	}
 
 	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
@@ -70,7 +73,7 @@ func NewReqContext() context.Context {
 	return reqCtx
 }
 
-func (gc *GRPCClient) ReadTransactionStream(reqCtx context.Context, msgBuilder *social.MessageBuilder) error {
+func (gc *GRPCClient) ReadTransactionStream(reqCtx context.Context, cancel context.CancelFunc, msgBuilder *social.MessageBuilder) error {
 	// open the TX stream
 	transactionStream, err := gc.Client.SubscribeTransactions(reqCtx, &pb.SubscribeTransactionsRequest{
 		Subscribe: &pb.TransactionFilter{
@@ -83,6 +86,7 @@ func (gc *GRPCClient) ReadTransactionStream(reqCtx context.Context, msgBuilder *
 	})
 	if err != nil {
 		gc.logger.Fatalf("Error subscribing to bchd TX stream: %+v", err)
+		cancel()
 		return err
 	}
 	gc.logger.Infof("Opened TX stream from BCHD")
@@ -90,9 +94,11 @@ func (gc *GRPCClient) ReadTransactionStream(reqCtx context.Context, msgBuilder *
 		data, err := transactionStream.Recv()
 		if err == io.EOF {
 			gc.logger.Errorf("BCHD TX stream stopped. This shouldn't happen!")
+			cancel()
 			break
 		} else if err != nil {
 			gc.logger.Errorf("Error in BCHD TX stream: %+v", err)
+			cancel()
 			break
 		}
 		//gc.logger.Debugf("TX: %+v", data)
@@ -108,6 +114,9 @@ func (gc *GRPCClient) ReadTransactionStream(reqCtx context.Context, msgBuilder *
 					if amountBCH < viper.GetFloat64("Message.WahleThresholdBCH") {
 						continue
 					}
+					// TODO add a filter if outputAddress in [previousInputAddress, ...] and deduct it
+					// last address is usually change address
+
 					hash, err := chainhash.NewHash(tx.GetHash())
 					if err != nil {
 						gc.logger.Errorf("Error getting hash of TX %+v", err)
@@ -121,7 +130,14 @@ func (gc *GRPCClient) ReadTransactionStream(reqCtx context.Context, msgBuilder *
 					}
 					err = msgBuilder.CreateMessage(txData)
 					if err == nil {
-						msgBuilder.SendMessage(txData)
+						err = msgBuilder.SendMessage(txData)
+						if err != nil {
+							gc.logger.Errorf("Error sending message %+v", err)
+						} else if gc.monitor != nil {
+							gc.monitor.AddEvent("LastTweet", monitoring.EventMap{
+								"msg": txData.Message,
+							})
+						}
 					}
 				}
 			}
