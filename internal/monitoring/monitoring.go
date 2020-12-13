@@ -86,7 +86,10 @@ func (m *HttpMonitoring) AddEvent(name string, value interface{}) error {
 	if exists == false { // only allow pre-registered events to prevent consuming too much memory
 		return errors.New(fmt.Sprintf("can not add unknown event '%s' - please add it to config first", name))
 	}
-	m.events[name] = value
+	m.events[name] = EventMap{
+		"data": value,
+		"when": time.Now().Unix(),
+	}
 	return nil
 }
 
