@@ -10,7 +10,7 @@ import (
 )
 
 type BitcoinComRate struct {
-	Price int `json:"price"`
+	Price int    `json:"price"`
 	Stamp uint64 `json:"stamp"`
 }
 
@@ -42,5 +42,5 @@ func GetBitcoinCashRate(fiatCurrency string) (float32, error) {
 }
 
 func SatoshiToBitcoin(sats int64) float64 {
-	return float64(sats / 100000000.0)
+	return float64(sats) / 100000000.0
 }

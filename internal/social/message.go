@@ -35,13 +35,15 @@ type TransactionData struct {
 	//RawTXs []*pb.Transaction_Output `json:"txs"`
 	AmountBchRaw float64 `json:"amount_bch_raw"`
 
-	Amount     string `json:"amount"`
-	Symbol     string `json:"symbol"`
-	Currency   string `json:"currency"`
-	FiatAmount string `json:"fiat_amount"`
-	FiatSymbol string `json:"fiat_symbol"`
-	Hash       string `json:"hash"`
-	TxLink     string `json:"tx_link"`
+	Amount     string  `json:"amount"`
+	Symbol     string  `json:"symbol"`
+	Currency   string  `json:"currency"`
+	FeeBch     float64 `json:"fee"`
+	FiatFee    string  `json:"fee"`
+	FiatAmount string  `json:"fiat_amount"`
+	FiatSymbol string  `json:"fiat_symbol"`
+	Hash       string  `json:"hash"`
+	TxLink     string  `json:"tx_link"`
 
 	Message string `json:"message"`
 }
@@ -63,6 +65,7 @@ func (m *MessageBuilder) CreateMessage(tx *TransactionData) error {
 	tx.Symbol = "BCH" // TODO add SLP support
 	tx.Currency = "BitcoinCash"
 	tx.FiatAmount = pr.Sprintf("%.0f", tx.AmountBchRaw*float64(price))
+	tx.FiatFee = pr.Sprintf("%.4f", tx.FeeBch*float64(price))
 	tx.FiatSymbol = viper.GetString("Message.FiatCurrency")
 	tx.TxLink = fmt.Sprintf(viper.GetString("Message.BlockExplorer"), tx.Hash)
 

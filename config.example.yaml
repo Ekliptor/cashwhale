@@ -15,11 +15,16 @@ BCHD:
   AllowSelfSigned: true
 
 Message:
-  Text: "{{.Amount}} #{{.Currency}} #{{.Symbol}} ({{.FiatAmount}} {{.FiatSymbol}}) transferred\n\nTX: {{.TxLink}}"
+  # message without TX fees
+  #Text: "{{.Amount}} #{{.Currency}} #{{.Symbol}} ({{.FiatAmount}} {{.FiatSymbol}}) transferred\n\nTX: {{.TxLink}}"
+  # message including TX fees
+  Text: "{{.Amount}} #{{.Currency}} #{{.Symbol}} ({{.FiatAmount}} {{.FiatSymbol}}) transferred with {{.FiatFee}} {{.FiatSymbol}} TX fee\n\nTX: {{.TxLink}}"
+
   BlockExplorer: "https://explorer.bitcoin.com/bch/tx/%s"
   FiatCurrency: "USD"
-  WahleThresholdBCH: 2000.0
+  WahleThresholdBCH: 20000.0
 
+# monitoring JSON of this process available at: http://your-ip:8686/monitoring
 Monitoring:
   Enable: true
   Address: ":8686"

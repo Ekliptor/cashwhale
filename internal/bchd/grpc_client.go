@@ -106,39 +106,55 @@ func (gc *GRPCClient) ReadTransactionStream(reqCtx context.Context, cancel conte
 			tx := data.GetConfirmedTransaction()
 			if tx == nil {
 				gc.logger.Errorf("Received invalid bchd TX")
-			} else {
-				// loop through TX outputs and find big transactions
-				outputs := tx.GetOutputs()
-				for _, out := range outputs {
-					amountBCH := price.SatoshiToBitcoin(out.Value)
-					if amountBCH < viper.GetFloat64("Message.WahleThresholdBCH") {
-						continue
-					}
-					// TODO add a filter if outputAddress in [previousInputAddress, ...] and deduct it
-					// last address is usually change address
+				continue
+			}
 
-					hash, err := chainhash.NewHash(tx.GetHash())
-					if err != nil {
-						gc.logger.Errorf("Error getting hash of TX %+v", err)
-						continue
-					}
-					txData := &social.TransactionData{
-						AmountBchRaw: amountBCH,
-						//Hash: hex.EncodeToString(tx.GetHash()),
-						//Hash: hex.EncodeToString(tx.GetBlockHash()),
-						Hash: hash.String(),
-					}
-					err = msgBuilder.CreateMessage(txData)
-					if err == nil {
-						err = msgBuilder.SendMessage(txData)
-						if err != nil {
-							gc.logger.Errorf("Error sending message %+v", err)
-						} else if gc.monitor != nil {
-							gc.monitor.AddEvent("LastTweet", monitoring.EventMap{
-								"msg": txData.Message,
-							})
-						}
-					}
+			// check if it's a Coinbase TX
+			inputs := tx.GetInputs()
+			if len(inputs) == 0 { // can't happen
+				gc.logger.Errorf("TX has 0 inputs. block height %d, hash (reversed) %s", tx.GetBlockHeight(), tx.GetHash())
+				continue
+			}
+			inputHash, err := chainhash.NewHash(inputs[0].GetOutpoint().GetHash())
+			if err != nil {
+				gc.logger.Errorf("Error getting input hash of TX %+v", err)
+				continue
+			} else if (inputHash.IsEqual(&chainhash.Hash{})) {
+				continue // Coinbase TX has no input
+			}
+
+			// loop through TX outputs and find big transactions
+			fee := getTransactionFee(tx)
+			outputs := tx.GetOutputs()
+			var amountBCH float64 = 0.0
+			for _, out := range outputs {
+				// TODO add a filter if outputAddress in [previousInputAddress, ...] and deduct it
+				// last address is usually change address
+				amountBCH += price.SatoshiToBitcoin(out.GetValue())
+			}
+			if amountBCH < viper.GetFloat64("Message.WahleThresholdBCH") {
+				continue
+			}
+
+			hash, err := chainhash.NewHash(tx.GetHash())
+			if err != nil {
+				gc.logger.Errorf("Error getting hash of TX %+v", err)
+				continue
+			}
+			txData := &social.TransactionData{
+				AmountBchRaw: amountBCH,
+				FeeBch:       price.SatoshiToBitcoin(fee),
+				Hash:         hash.String(),
+			}
+			err = msgBuilder.CreateMessage(txData)
+			if err == nil {
+				err = msgBuilder.SendMessage(txData)
+				if err != nil {
+					gc.logger.Errorf("Error sending message %+v", err)
+				} else if gc.monitor != nil {
+					gc.monitor.AddEvent("LastTweet", monitoring.EventMap{
+						"msg": txData.Message,
+					})
 				}
 			}
 		}
