@@ -77,7 +77,8 @@ func watchTransactions(ctx context.Context, logger log.Logger, monitor *monitori
 			time.Sleep(10 * time.Second)
 			client, err = bchd.NewGrpcClient(logger, monitor)
 			if err != nil {
-				logger.Fatalf("Error creating bchd gRPC client: %+v", err)
+				logger.Errorf("Error creating bchd gRPC client: %+v", err)
+				break
 			}
 			reqCtx, cancel = context.WithCancel(bchd.NewReqContext())
 			go client.ReadTransactionStream(reqCtx, cancel, msgBuilder)
@@ -88,6 +89,16 @@ func watchTransactions(ctx context.Context, logger log.Logger, monitor *monitori
 			terminating = true
 		}
 	}
+
+	/**
+	TODO exiting (without error)
+	2021-01-02T15:33:11.271Z        INFO    social/message.go:92    Successfully sent tweet with ID: 1345392702536503296{"module": "twitter"}
+	2021-01-02T21:48:00.223Z        ERROR   runtime/asm_amd64.s:1374        Error in BCHD TX stream: rpc error: code = Unavailable desc = transport is closing   {"module": "bchd_grpc"}
+	2021-01-02T21:48:00.224Z        ERROR   cmd/watch.go:51 Error in gRPC connection, retrying...
+	2021-01-02T21:48:10.224Z        INFO    cmd/watch.go:78 Connecting to BCHD at: bchd.greyh.at:8335
+	2021-01-02T21:48:15.224Z        INFO    cmd/watch.go:78 Connecting to gRPC using TLS
+	2021-01-02T21:48:15.224Z        FATAL   cmd/watch.go:78 context deadline exceeded       {"module": "bchd_grpc"}
+	*/
 }
 
 func createMonitoringClient(ctx context.Context, logger log.Logger) *monitoring.HttpMonitoring {

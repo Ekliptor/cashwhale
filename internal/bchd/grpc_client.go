@@ -41,7 +41,8 @@ func NewGrpcClient(logger log.Logger, monitor *monitoring.HttpMonitoring) (grpcC
 	if viper.GetString("BCHD.RootCertFile") != "" {
 		creds, err := credentials.NewClientTLSFromFile(viper.GetString("BCHD.RootCertFile"), viper.GetString("BCHD.CaDomain"))
 		if err != nil {
-			logger.Fatalf("Failed to create gRPC TLS credentials %v", err)
+			logger.Errorf("Failed to create gRPC TLS credentials %v", err)
+			return nil, err
 		}
 		opts = append(opts, grpc.WithTransportCredentials(creds))
 	} else {
@@ -54,7 +55,8 @@ func NewGrpcClient(logger log.Logger, monitor *monitoring.HttpMonitoring) (grpcC
 	grpcClient.conn, err = grpc.DialContext(ctx, target, opts...)
 	logger.Infof("Connecting to gRPC using TLS")
 	if err != nil {
-		grpcClient.logger.Fatalf("%+v", err)
+		grpcClient.logger.Errorf("%+v", err)
+		return nil, err
 	}
 
 	grpcClient.Client = pb.NewBchrpcClient(grpcClient.conn)
@@ -85,7 +87,7 @@ func (gc *GRPCClient) ReadTransactionStream(reqCtx context.Context, cancel conte
 		SerializeTx:    false,
 	})
 	if err != nil {
-		gc.logger.Fatalf("Error subscribing to bchd TX stream: %+v", err)
+		gc.logger.Errorf("Error subscribing to bchd TX stream: %+v", err)
 		cancel()
 		return err
 	}
