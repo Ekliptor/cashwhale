@@ -64,6 +64,9 @@ func NewGrpcClient(logger log.Logger, monitor *monitoring.HttpMonitoring) (grpcC
 }
 
 func (gc *GRPCClient) Close() error {
+	if gc.conn == nil {
+		return nil
+	}
 	return gc.conn.Close()
 }
 

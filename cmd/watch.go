@@ -72,7 +72,9 @@ func watchTransactions(ctx context.Context, logger log.Logger, monitor *monitori
 		case <-reqCtx.Done():
 			// something went wrong with our BCHD TX stream, retry
 			logger.Errorf("Error in gRPC connection, retrying...")
-			client.Close()
+			if client != nil {
+				client.Close()
+			}
 
 			time.Sleep(10 * time.Second)
 			client, err = bchd.NewGrpcClient(logger, monitor)
