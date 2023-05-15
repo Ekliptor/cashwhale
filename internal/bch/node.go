@@ -27,7 +27,9 @@ type Node struct {
 	User     string `mapstructure:"User"`
 	Password string `mapstructure:"Password"`
 	SSL      bool   `mapstructure:"SSL"`
-	Fulcrum  string `mapstructure:"Fulcrum"`
+
+	Fulcrum        string `mapstructure:"Fulcrum"`
+	FulcrumPingMin int    `mapstructure:"FulcrumPingMin"`
 
 	bchClient      *bitcoin.Bitcoind
 	electrumClient *electrum.Client

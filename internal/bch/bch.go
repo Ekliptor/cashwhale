@@ -113,6 +113,7 @@ func (b *Bch) WatchNewBlocks(ctx context.Context) (<-chan *bitcoin.BlockHeaderAn
 
 	respChan := make(chan *bitcoin.BlockHeaderAndCoinbase, 1)
 	go (func() {
+		var pingTicker = time.NewTicker(time.Minute * time.Duration(best.FulcrumPingMin))
 		terminating := false
 		for !terminating {
 			select {
@@ -134,6 +135,10 @@ func (b *Bch) WatchNewBlocks(ctx context.Context) (<-chan *bitcoin.BlockHeaderAn
 				}
 				b.logger.Debugf("Block %d has %d transactions", header.Height, len(block.Tx))
 				respChan <- block
+
+			case <-pingTicker.C:
+				// ping fulcrum to keep connection alive
+				best.electrumClient.Ping(ctx)
 
 			case <-ctx.Done():
 				terminating = true
