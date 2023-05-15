@@ -65,7 +65,13 @@ func (m *MessageBuilder) CreateMessage(tx *TransactionData) error {
 	tx.Symbol = "BCH" // TODO add SLP support
 	tx.Currency = "BitcoinCash"
 	tx.FiatAmount = pr.Sprintf("%.0f", tx.AmountBchRaw*float64(price))
-	tx.FiatFee = pr.Sprintf("%.4f", tx.FeeBch*float64(price))
+
+	fiatFee := tx.FeeBch * float64(price)
+	if fiatFee < 0.0001 {
+		fiatFee = 0.0001
+	}
+	tx.FiatFee = pr.Sprintf("%.4f", fiatFee)
+
 	tx.FiatSymbol = viper.GetString("Message.FiatCurrency")
 	tx.TxLink = fmt.Sprintf(viper.GetString("Message.BlockExplorer"), tx.Hash)
 
