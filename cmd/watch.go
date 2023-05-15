@@ -2,10 +2,12 @@ package cmd
 
 import (
 	"context"
-	"github.com/Ekliptor/cashwhale/internal/bchd"
+	"github.com/Ekliptor/cashwhale/internal/bch"
 	"github.com/Ekliptor/cashwhale/internal/log"
 	monitoring "github.com/Ekliptor/cashwhale/internal/monitoring"
 	"github.com/Ekliptor/cashwhale/internal/social"
+	"github.com/Ekliptor/cashwhale/internal/watcher"
+	"github.com/Ekliptor/cashwhale/pkg/txcounter"
 	"github.com/spf13/cobra"
 	"github.com/spf13/viper"
 	"sync"
@@ -45,19 +47,71 @@ var WatchCmd = &cobra.Command{
 			}()
 		}
 
+		// create the avg TX size counter
+		counter, err := txcounter.NewTxCounter(&txcounter.TxCounterConfig{
+			AverageTime: time.Duration(viper.GetInt("Average.TransactionAverageTimeH")) * time.Hour,
+		}, ctx, logger, monitor)
+		if err != nil {
+			logger.Fatalf("Error creating TX counter: %+v", err)
+		}
+		go counter.ScheduleCleanupTransactions()
+		// TODO ctx.Done() should wait for file write
+
+		// create the gRPC watch client
 		wg.Add(1)
 		go func() {
 			defer wg.Done()
-			watchTransactions(ctx, logger, monitor)
+			watchTransactionsRest(counter, ctx, logger, monitor)
 		}()
 
 		wg.Wait()
+
+		// cleanup on shutdown
+		err = counter.WriteTransactionsFile()
+		if err != nil {
+			logger.Errorf("Error writing transaction data to disk on shutdown %+v", err)
+		}
+
 		return nil
 	},
 }
 
-func watchTransactions(ctx context.Context, logger log.Logger, monitor *monitoring.HttpMonitoring) {
-	client, err := bchd.NewGrpcClient(logger, monitor)
+func watchTransactionsRest(counter *txcounter.TxCounter, ctx context.Context, logger log.Logger, monitor *monitoring.HttpMonitoring) {
+	msgBuilder := social.NewMessageBuilder(logger)
+	bch, err := bch.NewBch(ctx, logger)
+	if err != nil {
+		logger.Fatalf("Error creating BCH client: %+v", err)
+	}
+	bch.StartNodeTimer()
+
+	watch, err := watcher.NewWatcher(logger, monitor, counter, msgBuilder)
+	if err != nil {
+		logger.Fatalf("Error creating watcher: %+v", err)
+	}
+
+	blockCh, err := bch.WatchNewBlocks(ctx)
+	if err != nil {
+		logger.Fatalf("Error watching new blocks: %+v", err)
+	}
+
+	terminating := false
+	for !terminating {
+		select {
+		case block := <-blockCh:
+			for _, tx := range block.Tx {
+				watch.CheckTransaction(&tx)
+			}
+			watch.CheckLastTweetTime()
+
+		case <-ctx.Done():
+			terminating = true
+		}
+	}
+}
+
+/*
+func watchTransactions(counter *txcounter.TxCounter, ctx context.Context, logger log.Logger, monitor *monitoring.HttpMonitoring) {
+	client, err := bchd.NewGrpcClient(logger, monitor, counter)
 	if err != nil {
 		logger.Fatalf("Error creating bchd gRPC client: %+v", err)
 	}
@@ -72,12 +126,12 @@ func watchTransactions(ctx context.Context, logger log.Logger, monitor *monitori
 		case <-reqCtx.Done():
 			// something went wrong with our BCHD TX stream, retry
 			logger.Errorf("Error in gRPC connection, retrying...")
+			time.Sleep(10 * time.Second)
+
 			if client != nil {
 				client.Close()
 			}
-
-			time.Sleep(10 * time.Second)
-			client, err = bchd.NewGrpcClient(logger, monitor)
+			client, err = bchd.NewGrpcClient(logger, monitor, counter)
 			if err != nil {
 				logger.Errorf("Error creating bchd gRPC client: %+v", err)
 				break
@@ -92,6 +146,7 @@ func watchTransactions(ctx context.Context, logger log.Logger, monitor *monitori
 		}
 	}
 }
+*/
 
 func createMonitoringClient(ctx context.Context, logger log.Logger) *monitoring.HttpMonitoring {
 	if viper.GetBool("Monitoring.Enable") == false {
@@ -100,7 +155,9 @@ func createMonitoringClient(ctx context.Context, logger log.Logger) *monitoring.
 
 	monitor, err := monitoring.NewHttpMonitoring(monitoring.HttpMonitoringConfig{
 		HttpListenAddress: viper.GetString("Monitoring.Address"),
-		Events:            []string{"LastTweet"},
+		Events: []string{
+			"LastTweet", "TxCount", "TxAvgBch", "TxUpperPercentBch",
+		},
 	}, logger)
 	if err != nil {
 		logger.Fatalf("Error starting monitoring: %+v", err)

@@ -31,3 +31,6 @@ config.yaml
 
 # test coverage
 /testlog
+
+# app data
+transactions.db

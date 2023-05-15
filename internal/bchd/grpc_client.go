@@ -3,12 +3,15 @@ package bchd
 import (
 	"context"
 	"crypto/tls"
+	"fmt"
 	pb "github.com/Ekliptor/cashwhale/internal/bchd/golang"
 	"github.com/Ekliptor/cashwhale/internal/log"
 	"github.com/Ekliptor/cashwhale/internal/monitoring"
 	"github.com/Ekliptor/cashwhale/internal/social"
 	"github.com/Ekliptor/cashwhale/pkg/chainhash"
+	"github.com/Ekliptor/cashwhale/pkg/notification"
 	"github.com/Ekliptor/cashwhale/pkg/price"
+	"github.com/Ekliptor/cashwhale/pkg/txcounter"
 	"github.com/spf13/viper"
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/credentials"
@@ -20,13 +23,15 @@ import (
 type GRPCClient struct {
 	Client pb.BchrpcClient
 
+	counter *txcounter.TxCounter
 	logger  log.Logger
 	monitor *monitoring.HttpMonitoring
 	conn    *grpc.ClientConn
 }
 
-func NewGrpcClient(logger log.Logger, monitor *monitoring.HttpMonitoring) (grpcClient *GRPCClient, err error) {
+func NewGrpcClient(logger log.Logger, monitor *monitoring.HttpMonitoring, counter *txcounter.TxCounter) (grpcClient *GRPCClient, err error) {
 	grpcClient = &GRPCClient{
+		counter: counter,
 		logger: logger.WithFields(log.Fields{
 			"module": "bchd_grpc",
 		}),
@@ -60,6 +65,13 @@ func NewGrpcClient(logger log.Logger, monitor *monitoring.HttpMonitoring) (grpcC
 	}
 
 	grpcClient.Client = pb.NewBchrpcClient(grpcClient.conn)
+
+	// add dummy tweet so we always have a LastTweet value (in case we never start sending)
+	grpcClient.monitor.AddEvent("LastTweet", monitoring.D{
+		"msg": "never (connected)",
+	})
+
+	grpcClient.checkLastTweetTime()
 	return grpcClient, nil
 }
 
@@ -106,6 +118,7 @@ func (gc *GRPCClient) ReadTransactionStream(reqCtx context.Context, cancel conte
 			cancel()
 			break
 		}
+
 		//gc.logger.Debugf("TX: %+v", data)
 		if data.GetType() == pb.TransactionNotification_CONFIRMED {
 			tx := data.GetConfirmedTransaction()
@@ -113,6 +126,7 @@ func (gc *GRPCClient) ReadTransactionStream(reqCtx context.Context, cancel conte
 				gc.logger.Errorf("Received invalid bchd TX")
 				continue
 			}
+			gc.checkLastTweetTime()
 
 			// check if it's a Coinbase TX
 			inputs := tx.GetInputs()
@@ -137,8 +151,12 @@ func (gc *GRPCClient) ReadTransactionStream(reqCtx context.Context, cancel conte
 				// last address is usually change address
 				amountBCH += price.SatoshiToBitcoin(out.GetValue())
 			}
+			gc.counter.AddTransaction(float32(amountBCH))
 			if amountBCH < viper.GetFloat64("Message.WahleThresholdBCH") {
-				continue
+				//if gc.counter.GetTransactionCount() < viper.GetInt("Average.MinTxCount") || amountBCH < float64(gc.counter.GetAverageTransactionSize()) * viper.GetFloat64("Average.AverageTxFactor") {
+				if gc.counter.GetTransactionCount() < viper.GetInt("Average.MinTxCount") || amountBCH < float64(gc.counter.GetUpperTransactionSizePercent(float32(viper.GetFloat64("Average.UpperTxPercent")))) {
+					continue
+				}
 			}
 
 			hash, err := chainhash.NewHash(tx.GetHash())
@@ -157,8 +175,9 @@ func (gc *GRPCClient) ReadTransactionStream(reqCtx context.Context, cancel conte
 				if err != nil {
 					gc.logger.Errorf("Error sending message %+v", err)
 				} else if gc.monitor != nil {
-					gc.monitor.AddEvent("LastTweet", monitoring.EventMap{
+					gc.monitor.AddEvent("LastTweet", monitoring.D{
 						"msg": txData.Message,
+						//"time": time.Now(), // "when" attribute is present in event map
 					})
 				}
 			}
@@ -166,4 +185,37 @@ func (gc *GRPCClient) ReadTransactionStream(reqCtx context.Context, cancel conte
 	}
 
 	return nil
+}
+
+func (gc *GRPCClient) checkLastTweetTime() {
+	lastTweet := gc.monitor.GetEvent("LastTweet")
+	if lastTweet == nil {
+		gc.logger.Errorf("No LastTweet event found. Monitoring will not work")
+		return
+	}
+
+	lastTweetTime := time.Unix(lastTweet.When, 0)
+	threshold := time.Duration(viper.GetInt("Monitoring.TweetThresholdH"))
+	if lastTweetTime.Add(threshold * time.Hour).After(time.Now()) {
+		return
+	}
+
+	// TODO move config loading to a better place. Errors won't happen often though
+	notifier := make([]*notification.NotificationReceiver, 0, 5)
+	err := viper.UnmarshalKey("Notify", &notifier)
+	if err != nil {
+		gc.logger.Errorf("Error reading notifier config %+v", err)
+		return
+	}
+
+	sendData := notification.NewNotification(fmt.Sprintf("%s tweets stopped", viper.GetString("App.Name")),
+		fmt.Sprintf("Last tweet: %s ago", time.Since(lastTweetTime)))
+
+	for _, notify := range notifier {
+		_, err = notification.CreateAndSendNotification(sendData, notify)
+		if err != nil {
+			gc.logger.Errorf("Error sending 'tweets stopped' notification %+v", err)
+			return
+		}
+	}
 }

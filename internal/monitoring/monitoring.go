@@ -13,7 +13,17 @@ import (
 // ensure we always implement http.Handler (compile error otherwise)
 var _ http.Handler = (*HttpMonitoring)(nil)
 
-type EventMap map[string]interface{}
+// D is a shortcut to use for adding events
+type D map[string]interface{}
+
+// EventMap contains the map of all registered events
+type EventMap map[string]*Event
+
+// Event is a single event.
+type Event struct {
+	Data interface{} `json:"data"`
+	When int64       `json:"when"` // unix timestamp
+}
 
 type HttpMonitoringConfig struct {
 	HttpListenAddress string   // for example ":8080"
@@ -79,18 +89,34 @@ func (m *HttpMonitoring) ListenHttp(ctx context.Context) error {
 	return nil
 }
 
-// Adds an event with the current timestamp. It overwrites the previous event
+// AddEvent adds an event with the current timestamp. It overwrites the previous event
 // of the same name (if existing).
 func (m *HttpMonitoring) AddEvent(name string, value interface{}) error {
 	_, exists := m.events[name]
 	if exists == false { // only allow pre-registered events to prevent consuming too much memory
 		return errors.New(fmt.Sprintf("can not add unknown event '%s' - please add it to config first", name))
 	}
-	m.events[name] = EventMap{
-		"data": value,
-		"when": time.Now().Unix(),
+	m.events[name] = &Event{
+		Data: value,
+		When: time.Now().Unix(),
 	}
 	return nil
+}
+
+// GetEvent returns a registered event value.
+func (m *HttpMonitoring) GetEvent(name string) *Event {
+	event, exists := m.events[name]
+	if exists == false {
+		m.logger.Errorf("Can not fetch unregistered event: %s", name)
+		return nil
+	}
+	return event
+}
+
+type MonitoringHttpResponse struct {
+	Error bool     `json:"error"`
+	Data  EventMap `json:"data"`
+	Time  int64    `json:"time"` // unix timestamp
 }
 
 // Respond with monitoring data to an HTTP request.
@@ -104,17 +130,17 @@ func (m *HttpMonitoring) ServeHTTP(writer http.ResponseWriter, req *http.Request
 		return
 	}
 
-	res := EventMap{
-		"error": false,
-		"data":  m.events,
-		"time":  time.Now().Unix(),
+	res := MonitoringHttpResponse{
+		Error: false,
+		Data:  m.events,
+		Time:  time.Now().Unix(),
 	}
 	jsonData, err := json.Marshal(res)
 	if err != nil {
 		m.logger.Errorf("Error responding monitoring data: %+v", err)
 
-		res["error"] = true
-		res["data"] = nil // the payload most likely caused the error
+		res.Error = true
+		res.Data = nil // the payload most likely caused the error
 		jsonData, err := json.Marshal(res)
 		if err != nil {
 			m.logger.Errorf("Repeating responding monitoring data - giving up: %+v", err)

@@ -1,9 +1,20 @@
+App:
+  Name: "cashwhale"
+
 # Logger settings
 Log:
   Level: debug
   Color: true
   JSON: false
   EnableFile: false
+
+BCH:
+  Nodes:
+    - Address: ""
+      User: ""
+      Password: ""
+      SSL: false
+      Fulcrum: ""
 
 BCHD:
   # BCHD servers: bchd.imaginary.cash:8335 or bchd.greyh.at:8335, bchd.fountainhead.cash:443, bchd.cashtippr.com:8335
@@ -29,6 +40,8 @@ Monitoring:
   Enable: true
   Address: ":8686"
 
+  TweetThresholdH: 24 # notify error if no tweets sent
+
 # Twitter config
 Twitter:
   Enable: true
@@ -39,4 +52,10 @@ Twitter:
 
 Price:
   API:
+    # available currencies: https://index.bitcoin.com/#10
     USD: "https://index-api.bitcoin.com/api/v0/cash/price/usd"
+
+Notify:
+  - Method: "" # pushover|telegram|email
+    AppToken: ""
+    Receiver: ""
