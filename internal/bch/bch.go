@@ -138,7 +138,8 @@ func (b *Bch) WatchNewBlocks(ctx context.Context) (<-chan *bitcoin.BlockHeaderAn
 
 			case <-pingTicker.C:
 				// ping fulcrum to keep connection alive
-				best.electrumClient.Ping(ctx)
+				err := best.electrumClient.Ping(ctx)
+				b.reconnectElectrumOnError(err)
 
 			case <-ctx.Done():
 				terminating = true
